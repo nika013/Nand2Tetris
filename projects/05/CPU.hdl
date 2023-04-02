@@ -40,4 +40,40 @@ CHIP CPU {
 
     PARTS:
     // Put your code here:
+
+	And(a = instruction[15], b = instruction[12], out = IsAOrM);
+	Mux16(a = A, b = inM, sel = IsAOrM, out = ALUY);
+
+	ALU(x = D, y = ALUY, zx = instruction[11], nx = instruction[10], zy = instruction[9], ny = instruction[8], f = instruction[7], no = instruction[6], out = outM1, out = outM, zr = zr, ng = ng);
+
+    // proccess ALU outputs
+	Not(in = ng, out = positive);
+	Not(in = zr, out = notZ);
+	And(a = instruction[15], b = instruction[0], out = jgt);
+	And(a = positive, b = notZ, out = gtz);
+	And(a = jgt, b = gtz, out = j1);
+
+    // define first bit 
+    Not(in = instruction[15], out = Nfirst);
+	Mux16(a = outM1, b = instruction, sel = Nfirst, out = ARegVal);
+
+    // define A register value
+	Or(a = Nfirst, b = instruction[5], out = ARegLoad);
+	ARegister(in = ARegVal, load = ARegLoad, out = A, out[0..14] = addressM);
+
+    // define D register value
+	And(a = instruction[15], b = instruction[4], out = DLoad);
+	DRegister(in = outM1, load = DLoad, out = D);
+
+	And(a = instruction[15], b = instruction[3], out = writeM);
+
+    // find out wheter next instruction is with jump or not
+	And(a = instruction[15], b = instruction[1], out = jeq);
+	And(a = jeq, b=zr, out = j2);
+	And(a = instruction[15], b = instruction[2], out = jlt);
+	And(a = jlt, b = ng, out = j3);
+	Or(a = j1, b = j2,out = j);
+	Or(a = j3, b = j, out = jumpLoad);
+
+	PC(in = A, load = jumpLoad, inc = true, reset = reset, out[0..14] = pc);
 }

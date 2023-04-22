@@ -5,8 +5,9 @@ from typing import List
 
 
 def arithmetic_op(op: str) -> str:
+    instr = "D=D+M\n" if op == "+" else "D=M-D\n"
     res = "@SP\n" + "A=M-1\n" + "D=M\n"  # get first num
-    res += "A=A-1\n" + "D=D" + op + "M\n"  # make op second num and save in D register
+    res += "A=A-1\n" + instr  # make op second num and save in D register
     res += "M=D\n"  # save new val in proper place of stack
     res += "@SP\n" + "M=M-1"  # decrease stack
     return res

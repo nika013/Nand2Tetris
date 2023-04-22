@@ -14,7 +14,16 @@ A=M
 M=D
 @SP
 M=M+1
-// not
+// sub
 @SP
 A=M-1
-M=!M
+D=M
+A=A-1
+D=M-D
+M=D
+@SP
+M=M-1
+// neg
+@SP
+A=M-1
+M=-M

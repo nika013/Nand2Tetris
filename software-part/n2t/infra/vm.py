@@ -2,15 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from n2t.infra.io import File, FileFormat
-from typing import Iterator, Protocol, Iterable
+from typing import Iterator
+
 from n2t.core import VMTranslator as DefaultVMTranslator
+from n2t.infra.io import File, FileFormat
 
 
 @dataclass
 class VmProgram:  # TODO: your work for Projects 7 and 8 starts here
     path: Path
-    vm_translator: DefaultVMTranslator = field(default_factory=DefaultVMTranslator.create)
+    vm_translator: DefaultVMTranslator = field(
+        default_factory=DefaultVMTranslator.create
+    )
 
     @classmethod
     def load_from(cls, file_or_directory_name: str) -> VmProgram:

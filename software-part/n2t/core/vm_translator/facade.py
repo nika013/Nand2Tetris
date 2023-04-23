@@ -1,7 +1,5 @@
 from dataclasses import dataclass
-from typing import Iterable
-from n2t.core.vm_translator.entities import Stack
-from typing import List
+from typing import Iterable, List
 
 
 def arithmetic_op(op: str) -> str:
@@ -22,14 +20,11 @@ def and_or_asm(op: str) -> str:
 
 @dataclass
 class VMTranslator:
-    st: Stack = Stack()
-
     @classmethod
     def create(cls):
         return cls()
 
     def my_init(self) -> None:
-        self.st = Stack()
         self.cmp = 1
 
     def translate(self, vm_code: Iterable[str]) -> Iterable[str]:
@@ -45,7 +40,7 @@ class VMTranslator:
         if type_command == "push":
             out += self.handle_push(statement)
         elif type_command == "pop":
-            out += self.handle_pop()
+            out += self.handle_pop(statement)
         elif type_command == "add":
             out += self.handle_arithmetic(type_command)
         elif type_command == "sub":
@@ -67,32 +62,17 @@ class VMTranslator:
         return out
 
     def handle_not(self) -> str:
-        num = self.st.pop()
-        self.st.push(~num)
         asm = "@SP\n" + "A=M-1\n" + "M=!M"
         return asm
 
     def handle_bit_wise(self, type_comm: str) -> str:
-        y = self.st.pop()
-        x = self.st.pop()
         if type_comm == "and":
-            op = "&"
-            self.st.push(x & y)
-            return and_or_asm(op)
+            return and_or_asm("&")
         elif type_comm == "or":
-            op = "|"
-            self.st.push(x | y)
-            return and_or_asm(op)
+            return and_or_asm("|")
+        return ""
 
     def handle_logicals(self, log_comm: str) -> str:
-        y = self.st.pop()
-        x = self.st.pop()
-        if log_comm == "eq":
-            self.st.push(1 if x == y else 0)
-        elif log_comm == "gt":
-            self.st.push(1 if x > y else 0)
-        elif log_comm == "lt":
-            self.st.push(1 if x < y else 0)
         return self.compose_compare(log_comm.upper())
 
     def compose_compare(self, op: str) -> str:
@@ -106,35 +86,95 @@ class VMTranslator:
         return asm
 
     def handle_neg(self) -> str:
-        to_neg = self.st.pop()
-        self.st.push(to_neg * -1)
         res = "@SP\n" + "A=M-1\n" + "M=-M"
         return res
 
     def handle_arithmetic(self, type_command: str) -> str:
-        y = self.st.pop()
-        x = self.st.pop()
         if type_command == "add":
-            self.st.push(x + y)
             return arithmetic_op("+")
         elif type_command == "sub":
-            self.st.push(x - y)
             return arithmetic_op("-")
         else:
             raise ValueError("Some error in handle_arithm method")
 
     def handle_push(self, statement: List[str]) -> str:
-        if statement[2].isnumeric():
+        if statement[2].isnumeric() and statement[1] == "constant":
             return self.save_value(statement[2])
+        else:
+            return self.move_to_stack(statement)
 
     def save_value(self, val: str) -> str:
         res = "@" + val + "\n"  # save value at A register
         res += "D=A\n" + "@SP\n" + "A=M\n" + "M=D\n"  # write in RAM[SP] = val
         res += "@SP\n" + "M=M+1"  # sp++
-        self.st.push(int(val))
         return res
 
-    def handle_pop(self) -> str:
-        res = "@SP\n" + "D=M\n" + "M=M-1"
-        self.st.pop()
+    def handle_pop(self, statement: List[str]) -> str:
+        if len(statement) == 1:
+            asm = "@SP\n" + "D=M\n" + "M=M-1\n"
+        else:
+            segment = self.define_segment(statement[1])
+            idx = statement[2]
+            if segment == "static" or segment == "temp" or segment == "pointer":
+                return self.temp_register_pop(segment, idx)
+            asm = "@" + idx + "\n" + "D=A\n"  # save idx
+            asm += "@" + segment + "\n" + "D=M+D\n"
+            asm += "@15\n" + "M=D\n"  # temporary save
+            asm += "@SP\n" + "AM=M-1\n" + "D=M\n"
+            asm += "@15\n" + "A=M\n" + "M=D\n"
+        return asm
+
+    def move_to_stack(self, statement: List[str]) -> str:
+        segment = self.define_segment(statement[1])
+        idx = str(statement[2])
+        if segment == "static" or segment == "temp" or segment == "pointer":
+            return self.temp_register_push(segment, idx)
+        res = "@" + idx + "\n" + "D=A\n"  # save idx at D register
+        res += "@" + segment + "\n" + "A=M+D\n"  # add offset
+        res += "D=M\n" + "@SP\n" + "A=M\n" + "M=D\n"  # save value to stack
+        res += "@SP\n" + "M=M+1"  # sp++
         return res
+
+    def temp_register_pop(self, segment: str, idx: str) -> str:
+        if segment == "static":
+            offset = 16
+        elif segment == "temp":
+            offset = 5
+        elif segment == "pointer":
+            offset = 3
+        address = str(int(idx) + offset)
+        res = "@" + address + "\n" + "D=A\n"
+        res += "@15\n" + "M=D\n"
+        res += "@SP\n" + "AM=M-1\n" + "D=M\n"
+        res += "@15\n" + "A=M\n" + "M=D\n"
+        return res
+
+    def temp_register_push(self, segment: str, idx: str) -> str:
+        if segment == "static":
+            offset = 16
+        elif segment == "temp":
+            offset = 5
+        elif segment == "pointer":
+            offset = 3
+        address = str(int(idx) + offset)
+        res = "@" + address + "\n" + "D=M\n"
+        res += "@SP\n" + "A=M\n" + "M=D\n"
+        res += "@SP\n" + "M=M+1"  # sp++
+        return res
+
+    def define_segment(self, segment: str) -> str:
+        if segment == "local":
+            return "LCL"
+        elif segment == "argument":
+            return "ARG"
+        elif segment == "this":
+            return "THIS"
+        elif segment == "that":
+            return "THAT"
+        elif segment == "static":
+            return "static"
+        elif segment == "temp":
+            return "temp"
+        elif segment == "pointer":
+            return "pointer"
+        return ""

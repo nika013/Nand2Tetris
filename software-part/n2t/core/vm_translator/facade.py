@@ -2,36 +2,29 @@ from dataclasses import dataclass
 from typing import Iterable, List
 
 
-def arithmetic_op(op: str) -> str:
-    instr = "D=D+M\n" if op == "+" else "D=M-D\n"
-    res = "@SP\n" + "A=M-1\n" + "D=M\n"  # get first num
-    res += "A=A-1\n" + instr  # make op second num and save in D register
-    res += "M=D\n"  # save new val in proper place of stack
-    res += "@SP\n" + "M=M-1"  # decrease stack
-    return res
-
-
-def and_or_asm(op: str) -> str:
-    asm = "@SP\n" + "A=M-1\n" + "D=M\n" + "A=A-1\n"
-    asm += "M=D" + op + "M\n"
-    asm += "@SP\n" + "M=M-1"
-    return asm
-
-
 @dataclass
 class VMTranslator:
+    sys_enc: bool = False
+    bootstrap_added: bool = False
+    file_cnt: int = 1
+
     @classmethod
     def create(cls):
         return cls()
 
     def my_init(self) -> None:
         self.cmp = 1
+        self.cnt = 0
+        self.cnt_funcs = 0
 
     def translate(self, vm_code: Iterable[str]) -> Iterable[str]:
         self.my_init()
+        asm = []
         for command in vm_code:
             if command[0:2] != "//" and command.strip() != "":
-                yield self.translate_one(command)
+                asm.append(self.translate_one(command))
+        self.file_cnt += 1
+        return asm
 
     def translate_one(self, word: str) -> str:
         out = "// " + word + "\n"
@@ -59,7 +52,178 @@ class VMTranslator:
             out += self.handle_bit_wise(type_command)
         elif type_command == "not":
             out += self.handle_not()
+        elif type_command == "if-goto":
+            out += self.handle_if(statement[1])
+        elif type_command == "goto":
+            out += "@" + statement[1] + str(self.file_cnt) + "\n"
+            out += "0;JMP\n"
+        elif type_command == "label":
+            out += "(" + statement[1] + str(self.file_cnt) + ")\n"
+        elif type_command == "function":
+            out += self.handle_function(statement)
+        elif type_command == "return":
+            out += self.handle_return(statement)
+        elif type_command == "call":
+            self.handle_call(statement)
+            self.cnt_funcs += 1
+
         return out
+
+    def handle_call(self, statement: List[str]) -> str:
+        asm = "@ret_" + statement[1] + str(self.cnt_funcs) + "\n"
+        asm += "D=A\n"
+        asm += "@SP\n"
+        asm += "A=M\n"
+        asm += "M=D\n"
+        asm += "@SP\n"
+        asm += "M=M+1\n"
+        asm += "@LCL\n"
+        asm += "D=M\n"
+        asm += "@SP\n"
+        asm += "A=M\n"
+        asm += "M=D\n"
+        asm += "@SP\n"
+        asm += "M=M+1\n"
+        asm += "@ARG\n"
+        asm += "D=M\n"
+        asm += "@SP\n"
+        asm += "A=M\n"
+        asm += "M=D\n"
+        asm += "@SP\n"
+        asm += "M=M+1\n"
+        asm += "@THIS\n"
+        asm += "D=M\n"
+        asm += "@SP\n"
+        asm += "A=M\n"
+        asm += "M=D\n"
+        asm += "@SP\n"
+        asm += "M=M+1\n"
+        asm += "@THAT\n"
+        asm += "D=M\n"
+        asm += "@SP\n"
+        asm += "A=M\n"
+        asm += "M=D\n"
+        asm += "@SP\n"
+        asm += "M=M+1\n"
+        asm += "@SP\n"
+        asm += "D=M\n"
+        asm += "@5\n"
+        asm += "D=D-A\n"
+        asm += "@" + statement[2] + "\n"
+        asm += "D=D-A\n"
+        asm += "@ARG\n"
+        asm += "M=D\n"
+        asm += "@SP\n"
+        asm += "D=M\n"
+        asm += "@LCL\n"
+        asm += "M=D\n"
+        asm += "@" + statement[1].rstrip() + "\n"
+        asm += "0;JMP\n"
+        asm += "(ret_" + statement[1] + str(self.cnt_funcs) + ")\n"
+        return asm
+
+    def handle_return(self, statement: List[str]) -> str:
+        asm = "@LCL\n"
+        asm += "D=M\n"
+        asm += "@end\n"
+        asm += "M=D\n"
+        asm += "D=M\n"
+        asm += "@5\n"
+        asm += "D=D-A\n"
+        asm += "A=D\n"
+        asm += "D=M\n"
+        asm += "@RetAddr" + str(self.cnt_funcs) + "\n"
+        asm += "M=D\n"
+        asm += "@ARG\n"
+        asm += "D=M\n"
+        asm += "@idx" + str(self.cnt_funcs) + "\n"
+        asm += "M=D\n"
+        asm += "@SP\n"
+        asm += "M=M-1\n"
+        asm += "A=M\n"
+        asm += "D=M\n"
+        asm += "@idx" + str(self.cnt_funcs) + "\n"
+        asm += "A=M\n"
+        asm += "M=D\n"
+        asm += "@ARG\n"
+        asm += "D=M+1\n"
+        asm += "@SP\n"
+        asm += "M=D\n"
+        asm += "@end\n"
+        asm += "D=M-1\n"
+        asm += "A=D\n"
+        asm += "D=M\n"
+        asm += "@THAT\n"
+        asm += "M=D\n"
+        asm += "@2\n"
+        asm += "D=A\n"
+        asm += "@end\n"
+        asm += "D=M-D\n"
+        asm += "A=D\n"
+        asm += "D=M\n"
+        asm += "@THIS\n"
+        asm += "M=D\n"
+        asm += "@3\n"
+        asm += "D=A\n"
+        asm += "@end\n"
+        asm += "D=M-D\n"
+        asm += "A=D\n"
+        asm += "D=M\n"
+        asm += "@ARG\n"
+        asm += "M=D\n"
+        asm += "@4\n"
+        asm += "D=A\n"
+        asm += "@end\n"
+        asm += "D=M-D\n"
+        asm += "A=D\n"
+        asm += "D=M\n"
+        asm += "@LCL\n"
+        asm += "M=D\n"
+        asm += "@RetAddr" + str(self.cnt_funcs) + "\n"
+        asm += "A=M\n"
+        asm += "0;JMP\n"
+        return asm
+
+    def handle_function(self, statement: List[str]) -> str:
+        if statement[1] == "Sys.init" and not self.sys_enc:
+            self.sys_enc = True
+        function_name = statement[1]
+        asm = "(" + function_name + ")\n"
+        asm += "@" + statement[2] + "\n"
+        asm += "D=A\n"
+        asm += "@count" + function_name + "\n"
+        asm += "M=D\n"
+        asm += "(loop" + function_name + ")\n"
+        asm += "@count" + function_name + "\n"
+        asm += "D=M\n"
+        asm += "@end_loop" + function_name + "\n"
+        asm += "D;JEQ\n"
+        asm += "@count" + function_name + "\n"
+        asm += "M=M-1\n"
+        asm += "@0\n"
+        asm += "D=A\n"
+        asm += "@SP\n"
+        asm += "A=M\n"
+        asm += "M=D\n"
+        asm += "@SP\n"
+        asm += "M=M+1\n"
+        asm += "@loop" + function_name + "\n"
+        asm += "0;JMP\n"
+        asm += "(end_loop" + function_name + ")\n"
+        return asm
+
+    def handle_if(self, label: str) -> str:
+        asm = "@SP\n"
+        asm += "M=M-1\n"
+        asm += "A=M\n"
+        asm += "D=M\n"
+        asm += "@" + label + str(self.file_cnt) + "\n"
+        asm += "D;JNE\n"
+        return asm
+
+    def handle_go(self, label: str) -> str:
+        asm = "@" + label + "\n" + "0;JMP"
+        return asm
 
     def handle_not(self) -> str:
         asm = "@SP\n" + "A=M-1\n" + "M=!M"
@@ -67,9 +231,9 @@ class VMTranslator:
 
     def handle_bit_wise(self, type_comm: str) -> str:
         if type_comm == "and":
-            return and_or_asm("&")
+            return self.and_or_asm("&")
         elif type_comm == "or":
-            return and_or_asm("|")
+            return self.and_or_asm("|")
         return ""
 
     def handle_logicals(self, log_comm: str) -> str:
@@ -91,9 +255,9 @@ class VMTranslator:
 
     def handle_arithmetic(self, type_command: str) -> str:
         if type_command == "add":
-            return arithmetic_op("+")
+            return self.arithmetic_op("+")
         elif type_command == "sub":
-            return arithmetic_op("-")
+            return self.arithmetic_op("-")
         else:
             raise ValueError("Some error in handle_arithm method")
 
@@ -178,3 +342,76 @@ class VMTranslator:
         elif segment == "pointer":
             return "pointer"
         return ""
+
+    def arithmetic_op(self, op: str) -> str:
+        instr = "D=D+M\n" if op == "+" else "D=M-D\n"
+        res = "@SP\n" + "A=M-1\n" + "D=M\n"  # get first num
+        res += "A=A-1\n" + instr  # make op second num and save in D register
+        res += "M=D\n"  # save new val in proper place of stack
+        res += "@SP\n" + "M=M-1"  # decrease stack
+        return res
+
+    def and_or_asm(self, op: str) -> str:
+        asm = "@SP\n" + "A=M-1\n" + "D=M\n" + "A=A-1\n"
+        asm += "M=D" + op + "M\n"
+        asm += "@SP\n" + "M=M-1"
+        return asm
+
+    def add_bootstrap(self) -> str:
+        boot_code = "// start bootsstrap\n"
+        boot_code += "@256\n"
+        boot_code += "D=A\n"
+        boot_code += "@SP\n"
+        boot_code += "M=D\n"
+        boot_code += "@ret_Sys.init\n"
+        boot_code += "D=A\n"
+        boot_code += "@SP\n"
+        boot_code += "A=M\n"
+        boot_code += "M=D\n"
+        boot_code += "@SP\n"
+        boot_code += "M=M+1\n"
+        boot_code += "@LCL\n"
+        boot_code += "D=M\n"
+        boot_code += "@SP\n"
+        boot_code += "A=M\n"
+        boot_code += "M=D\n"
+        boot_code += "@SP\n"
+        boot_code += "M=M+1\n"
+        boot_code += "@ARG\n"
+        boot_code += "D=M\n"
+        boot_code += "@SP\n"
+        boot_code += "A=M\n"
+        boot_code += "M=D\n"
+        boot_code += "@SP\n"
+        boot_code += "M=M+1\n"
+        boot_code += "@THIS\n"
+        boot_code += "D=M\n"
+        boot_code += "@SP\n"
+        boot_code += "A=M\n"
+        boot_code += "M=D\n"
+        boot_code += "@SP\n"
+        boot_code += "M=M+1\n"
+        boot_code += "@THAT\n"
+        boot_code += "D=M\n"
+        boot_code += "@SP\n"
+        boot_code += "A=M\n"
+        boot_code += "M=D\n"
+        boot_code += "@SP\n"
+        boot_code += "M=M+1\n"
+        boot_code += "@SP\n"
+        boot_code += "D=M\n"
+        boot_code += "@5\n"
+        boot_code += "D=D-A\n"
+        boot_code += "@0\n"
+        boot_code += "D=D-A\n"
+        boot_code += "@ARG\n"
+        boot_code += "M=D\n"
+        boot_code += "@SP\n"
+        boot_code += "D=M\n"
+        boot_code += "@LCL\n"
+        boot_code += "M=D\n"
+        boot_code += "@Sys.init\n"
+        boot_code += "0;JMP\n"
+        boot_code += "(ret_Sys.init)\n"
+        boot_code += "// end bootsrap"
+        return boot_code

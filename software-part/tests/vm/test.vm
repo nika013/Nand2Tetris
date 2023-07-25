@@ -1,4 +1,0 @@
-push constant 0
-push constant 100
-sub
-neg

@@ -25,7 +25,6 @@ class AsmProgram:
         hack_file.save(self.assembler.assemble(self))
 
     def __iter__(self) -> Iterator[str]:
-        print("does this something?")
         yield from File(self.path).load()
 
 

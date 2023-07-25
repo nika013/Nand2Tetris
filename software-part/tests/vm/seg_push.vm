@@ -1,7 +1,0 @@
-push constant 10
-push constant 15
-push constant 13
-pop local 0
-pop argument 1
-push argument 1
-push local 0

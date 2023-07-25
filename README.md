@@ -1,7 +1,5 @@
 # Nand2Tetris Course Assignments Solutions
 
-![Nand2Tetris Logo](https://url-to-your-nand2tetris-logo.png)
-
 This repository contains my solutions to the main and important assignments of the Nand2Tetris course. The Nand2Tetris course is an exciting educational journey that takes students from building basic logic gates (NAND gates) to constructing a fully functional computer system capable of running high-level programs.
 
 ## Table of Contents
@@ -9,9 +7,6 @@ This repository contains my solutions to the main and important assignments of t
 - [Description](#description)
 - [Assignments](#assignments)
 - [How to Use the Solutions](#how-to-use-the-solutions)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [License](#license)
 
 ## Description
 

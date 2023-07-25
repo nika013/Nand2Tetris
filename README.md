@@ -43,6 +43,5 @@ To use the solutions in this repository, follow these steps:
 
 3. Review the source code and any additional documentation provided to understand the implementation.
 
-4. For running compiler, vm_translator or assembler write this command in terminal for more information ```shell
-python -m n2t --help
+4. For running compiler, vm_translator or assembler write this command in terminal for more information `python -m n2t --help`
 

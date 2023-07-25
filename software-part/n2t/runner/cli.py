@@ -8,14 +8,6 @@ cli = Typer(
     add_completion=False,
 )
 
-
-@cli.command("disassemble", no_args_is_help=True)
-def run_disassembler(hack_file: str) -> None:
-    echo(f"Disassembling {hack_file}")
-    HackProgram.load_from(hack_file).disassemble()
-    echo("Done!")
-
-
 @cli.command("assemble", no_args_is_help=True)
 def run_assembler(assembly_file: str) -> None:
     echo(f"Assembling {assembly_file}")
